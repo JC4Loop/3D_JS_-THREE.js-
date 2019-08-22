@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    	<meta charset="UTF-8">
+    	<script src="js/doob/three.js"></script>
+        <script src="js/doob/stats.js"></script>
+
+        <script src="js/myJs/TriangleBlock.js"></script>
+        <script src="js/myJs/Ball.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.0/jquery.min.js"></script>
+
+        <style>
+            body{
+                /* set margin to 0 and overflow to hidden, to go fullscreen */
+                margin: 0;
+                overflow: hidden;
+            }
+
+            #twoDCanvas{
+                background-color: transparent;
+                position:absolute;
+                top: 0;
+                left: 20px;
+                z-index: 2
+            }
+        </style>
+    </head>
+    <body onload="GLOBAL_VARS.canvas2d.init()">
+        <canvas id="twoDCanvas" width="1000" height="800"></canvas>
+        <div id="Stats-output">
+            <!-- A canvas to hold 2d context and to be placed on top of the 3d canvas -->
+        </div>
+
+        <div id="WebGL-output">
+        </div>
+
+        <script>
+        	var difference;
+            var GLOBAL_VARS = {};
+            GLOBAL_VARS.keys = [];
+            GLOBAL_VARS.camera;
+            GLOBAL_VARS.wheel;
+            GLOBAL_VARS.posP,GLOBAL_VARS.posM;
+            GLOBAL_VARS.cuboid1, GLOBAL_VARS.cuboid2, GLOBAL_VARS.cuboidWidth;
+            GLOBAL_VARS.bCubeMovements =[], GLOBAL_VARS.bReadyMoves = [];
+            GLOBAL_VARS.triBlock1;
+            for (var i = 0; i < 9; i++){
+                GLOBAL_VARS.bCubeMovements[i] = false;
+                GLOBAL_VARS.bReadyMoves[i] = false;
+            }
+            GLOBAL_VARS.cuboidsR = [];
+            GLOBAL_VARS.cuboidsL = [];
+            GLOBAL_VARS.triangle2d1,GLOBAL_VARS.triangle2d2,GLOBAL_VARS.triangle2d3;
+            GLOBAL_VARS.circle1, GLOBAL_VARS.circle2,GLOBAL_VARS.circle3;
+            GLOBAL_VARS.sphere1;
+            
+            GLOBAL_VARS.canvas2d = {
+                init : function(){
+                    this.canvas = document.getElementById('twoDCanvas');
+                    this.context = this.canvas.getContext('2d');
+                },
+                clear : function(){
+                    this.context.clearRect(0, 0, GLOBAL_VARS.canvas2d.canvas.width, GLOBAL_VARS.canvas2d.canvas.height);
+                }
+            }
+
+            GLOBAL_VARS.counter = {
+                init : function(){
+                    this.num = 0;
+                    this.paused = true;
+                    this.numCycles = 0;
+                    this.lastTimeStampS = Date.now(); // time stamp of previous full second (update every second)
+                    this.lastTimeStampC = Date.now(); // time stamp of previous cycle (update every cycle)
+                    this.numCyclesPrev = 0; // number of cycles recorded at time of previous update
+                    this.numCyclesLs = 0;// number of cycles within last second
+                }
+            }
+         
+            GLOBAL_VARS.timeLbl = new Label2d("Time : ","Consolas","20px","green",0,200);
+            GLOBAL_VARS.lbl2 = new Label2d('Cycles : ', "Consolas","20px","green",0,400);
+            GLOBAL_VARS.lblcps = new Label2d('Cycles Per Second : ',"Consolas","20px","green",0,450);
+            GLOBAL_VARS.lblcpc = new Label2d("milliseconds per cycle : ","Consolas","20px","green",0,500);
+
+            function Label2d(txt,font,size,color,x,y){
+                this.text = txt;
+                this.font = font;
+                this.size = size;
+                this.color = color;
+                this.x = x;
+                this.y = y;
+                this.update = function( data ){
+                    GLOBAL_VARS.canvas2d.context.font = this.size + " " + this.font;
+                    GLOBAL_VARS.canvas2d.context.fillStyle = color;
+                    GLOBAL_VARS.canvas2d.context.fillText(this.text + data, x,y);
+                }
+            }
+
+
+            $(function() {
+
+                const GLOBAL_DIR = "mine/";
+                GLOBAL_VARS.counter.init();
+                var stats = initStats();
+
+                // create a scene, that will hold all our elements such as objects, cameras and lights.
+                var scene = new THREE.Scene();
+
+                // create a camera, which defines where we're looking at.
+                GLOBAL_VARS.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+                // create a render and set the size
+                var renderer = new THREE.WebGLRenderer();
+
+                renderer.setClearColor(0xe6f2ff, 1.0);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled;
+
+                // create the ground plane
+                var planeGeometry = new THREE.PlaneGeometry(50, 100, 1, 1);
+                var planeMaterial = new THREE.MeshLambertMaterial({color: 0xffffff});
+                var plane = new THREE.Mesh(planeGeometry, planeMaterial);
+                plane.rotation.x = -0.5 * Math.PI;
+                scene.add(plane);
+
+                GLOBAL_VARS.cuboidWidth = 4;
+                let cuboidHeight = 6;
+                let wheelThickness = 1;
+                let wheelRadius = 5;
+                
+                GLOBAL_VARS.wheel.create(wheelRadius,wheelThickness,20);
+                GLOBAL_VARS.posP = GLOBAL_VARS.wheel.circumference / 2;
+                GLOBAL_VARS.posM = - GLOBAL_VARS.posP;
+
+                let measureCube1 = new THREE.Mesh(new THREE.CubeGeometry(GLOBAL_VARS.wheel.circumference,wheelRadius,1),new THREE.MeshLambertMaterial({color: 0x00ffff ,transparent: true, opacity: 0.5 }) );
+                measureCube1.position.y = (wheelRadius /2);
+                measureCube1.position.z = (wheelThickness / 2) + 0.5;
+                let measureCube2 = measureCube1.clone();
+                measureCube2.position.z = -measureCube1.position.z;
+                scene.add(measureCube1);
+                scene.add(measureCube2);
+                
+                var cuboidGeo = new THREE.CubeGeometry(GLOBAL_VARS.cuboidWidth, cuboidHeight, GLOBAL_VARS.cuboidWidth);
+                var cuboidMat = new THREE.MeshLambertMaterial({color: 0x00ffff});
+                GLOBAL_VARS.cuboid1 = new THREE.Mesh(cuboidGeo, cuboidMat);
+                GLOBAL_VARS.cuboid2 = new THREE.Mesh(cuboidGeo, cuboidMat);
+                // - cWidth so cube will be left side of posM - wheelRad so left side of wheel will touch right of cube
+                GLOBAL_VARS.cuboid1.position.x = GLOBAL_VARS.posM - (GLOBAL_VARS.cuboidWidth / 2) - wheelRadius;
+                GLOBAL_VARS.cuboid2.position.x = GLOBAL_VARS.posP + (GLOBAL_VARS.cuboidWidth / 2) + wheelRadius;
+                GLOBAL_VARS.cuboid1.position.y = cuboidHeight / 2;
+                GLOBAL_VARS.cuboid2.position.y = cuboidHeight / 2;
+                var zPos = 20;
+                for (var i = 0; i < 9; i++){
+                    if (zPos == 0){
+                        zPos -= (GLOBAL_VARS.cuboidWidth * 2) - 3;
+                    }
+                    cuboidMat = new THREE.MeshLambertMaterial({color: 0xffff00});
+                    GLOBAL_VARS.cuboidsL.push(new THREE.Mesh(cuboidGeo,cuboidMat));
+                    GLOBAL_VARS.cuboidsL[i].position.x = GLOBAL_VARS.posM - (GLOBAL_VARS.cuboidWidth / 2) - (wheelRadius);
+                    GLOBAL_VARS.cuboidsL[i].position.y = cuboidHeight / 2;
+                    GLOBAL_VARS.cuboidsL[i].position.z = zPos;
+                    GLOBAL_VARS.cuboidsR.push(new THREE.Mesh(cuboidGeo,cuboidMat));
+                    GLOBAL_VARS.cuboidsR[i].position.x = GLOBAL_VARS.posP + (GLOBAL_VARS.cuboidWidth / 2) + (wheelRadius);
+                    GLOBAL_VARS.cuboidsR[i].position.y = cuboidHeight / 2;
+                    GLOBAL_VARS.cuboidsR[i].position.z = zPos;
+                    zPos -= (GLOBAL_VARS.cuboidWidth * 2) -3;
+                    scene.add(GLOBAL_VARS.cuboidsL[i]);
+                    scene.add(GLOBAL_VARS.cuboidsR[i]); 
+                }
+                scene.add(GLOBAL_VARS.cuboid1);
+                scene.add(GLOBAL_VARS.cuboid2);
+            //    alert(cuboid2.position.x + " " + posP + (cuboidWidth /2 + wheelDiameter));
+                GLOBAL_VARS.wheel.mesh.position.x = GLOBAL_VARS.posP;
+               // wheel.position.z = (cuboidWidth / 2) + (wheelThickness / 2);
+                scene.add(GLOBAL_VARS.wheel.mesh);
+
+                createTwoDShapes(GLOBAL_DIR,scene);
+
+                
+                GLOBAL_VARS.triBlock1 = new TriangleBlock();
+
+            
+                var tsPoints = GLOBAL_VARS.triBlock1.getPoints();
+                var tsFaces = GLOBAL_VARS.triBlock1.getFaces();
+
+                let triSquare = CreateCustomShape(tsPoints,tsFaces,new THREE.MeshLambertMaterial({color: 0x00ffff}));
+                GLOBAL_VARS.triBlock1.setMesh(triSquare);
+
+                scene.add(GLOBAL_VARS.triBlock1.mesh);
+                GLOBAL_VARS.triBlock1.setX(85);
+                GLOBAL_VARS.triBlock1.setY(-10);
+                GLOBAL_VARS.triBlock1.setZ(-75);
+                GLOBAL_VARS.triBlock1.rotateY(45);
+                /*
+                for (let i = 0; i < 6; i++){
+                    alert(GLOBAL_VARS.triBlock1.points[i][0] + " " + GLOBAL_VARS.triBlock1.points[i][1] + " " + GLOBAL_VARS.triBlock1.points[i][2]);
+                    for (let j = 0; j < 3; j++){
+                        //alert(GLOBAL_VARS.triBlock1.points[i][j]);
+                    }
+                }*/
+                GLOBAL_VARS.triBlock1.setVirtualCube();
+                GLOBAL_VARS.sphere1 = new Ball(5);
+                let sphereGeo = new THREE.SphereGeometry(GLOBAL_VARS.sphere1.radius, 20, 20);
+                let sphereMat = new THREE.MeshLambertMaterial({color: 0x0000FF});
+                GLOBAL_VARS.sphere1.setMesh(new THREE.Mesh(sphereGeo,sphereMat));
+                scene.add(GLOBAL_VARS.sphere1.mesh);
+                GLOBAL_VARS.sphere1.setX(90);
+                GLOBAL_VARS.sphere1.setY(50);
+                GLOBAL_VARS.sphere1.setZ(-80);
+
+                // position and point the camera to the center of the scene
+                GLOBAL_VARS.camera.position.x = 0;
+                GLOBAL_VARS.camera.position.y = 10;
+                GLOBAL_VARS.camera.position.z = 60;
+                GLOBAL_VARS.camera.lookAt(scene.position);
+                //camera.rotation.x = 0;
+               // camera.rotation.y = 0;
+               // camera.rotation.z = 0;
+                //alert(camera.rotation.x);
+                // add subtle ambient lighting
+                var ambientLight = new THREE.AmbientLight(0x0c0c0c);
+                scene.add(ambientLight);
+
+                // add spotlight for the shadows
+                var pointLight = new THREE.PointLight(0xffffff);
+                pointLight.position.set(0, 60, 20);
+                scene.add(pointLight);
+
+
+                // add the output of the renderer to the html element
+                $("#WebGL-output").append(renderer.domElement);
+                //GLOBAL_VARS.timeLbl.init();
+               // GLOBAL_VARS.circle1.move();
+                render();
+
+                function render() {
+                    stats.update();
+                    HandleKeyPress();
+                    cuboidMovement();
+                    GLOBAL_VARS.circle1.move();
+                    GLOBAL_VARS.sphere1.move(GLOBAL_VARS.triBlock1);
+                    GLOBAL_VARS.circle2.move();
+                    GLOBAL_VARS.circle3.move();
+                    GLOBAL_VARS.wheel.move();
+                    counterCheck();
+                    GLOBAL_VARS.canvas2d.clear();
+                    counterLblsUpdate();
+
+                    setTimeout( function() {
+                    	requestAnimationFrame( render );
+                    	renderer.render(scene, GLOBAL_VARS.camera);
+                    }, 12 ); // delay of 12 milliseconds
+                }
+
+                function initStats() {
+                    var stats = new Stats();
+                    stats.setMode(0); // 0: fps, 1: ms
+                    // Align top-left
+                    stats.domElement.style.position = 'absolute';
+                    stats.domElement.style.left = '0px';
+                    stats.domElement.style.top = '0px';
+                    $("#Stats-output").append(stats.domElement);
+                    return stats;
+                }
+            }); // end of jquery function
+
+            GLOBAL_VARS.wheel = {
+                create : function(radius,thickness,segments){
+                    var wheelGeo = new THREE.CylinderGeometry(radius, radius, thickness, 20, thickness);
+                    var texture = new THREE.TextureLoader().load('mine/wheel.png');
+                    var wheelMat = CreateCylinderMaterial(texture);
+                    this.radius = radius;
+                    this.circumference = 2 * Math.PI * this.radius;
+                    this.mesh = new THREE.Mesh(wheelGeo,wheelMat);
+                    this.moveValue = 0.1;
+                    this.moveLeft = true;
+                    this.mesh.rotation.x = 0.5 * Math.PI;
+                    this.mesh.rotation.y = 0.5 * Math.PI;
+                    this.mesh.rotation.z = Math.PI;
+                    this.mesh.position.y = this.radius;
+                },
+                move : function(){
+                    if (GLOBAL_VARS.counter.paused == true){
+                        var pcnt = (this.moveValue / this.circumference) * 100;
+                        var r = (pcnt / 100) * (2 * Math.PI);
+                        if (this.mesh.position.x <= GLOBAL_VARS.posM){ // cuboid1.position.x + wheelDiameter + (cuboidWidth / 2)
+                            this.moveLeft = false;
+                            GLOBAL_VARS.counter.paused = false;
+                        }
+                        //alert('here in wheelmove');
+                        if (this.mesh.position.x >= GLOBAL_VARS.posP){
+                            this.moveLeft = true;
+                            GLOBAL_VARS.counter.paused = false;
+                        }
+                        if (this.moveLeft){
+                            this.mesh.position.x -= this.moveValue;
+                            this.mesh.rotation.y += r;
+                        } else {
+                            this.mesh.position.x += this.moveValue;
+                            this.mesh.rotation.y -= r;
+                        }
+                    } 
+                } 
+            }
+
+            function cuboidMovement(){
+                for (var i = 0; i < GLOBAL_VARS.cuboidsL.length; i++){
+                    if (i == 0){
+                        if (GLOBAL_VARS.bCubeMovements[0] == false){
+                            if (GLOBAL_VARS.cuboidsL[0].position.y > -1){
+                                GLOBAL_VARS.cuboidsL[0].position.y -= 0.02;
+                            } else {
+                                GLOBAL_VARS.bCubeMovements[0] = true;
+                            }
+                        } else {
+                            if (GLOBAL_VARS.cuboidsL[0].position.y < 3){
+                                GLOBAL_VARS.cuboidsL[0].position.y += 0.02;
+                            } else {
+                                GLOBAL_VARS.bCubeMovements[0] = false;
+                            }
+                        }
+                    } else {
+                        if (GLOBAL_VARS.bReadyMoves[i] == false){
+                            if ((GLOBAL_VARS.cuboidsL[i].position.y - GLOBAL_VARS.cuboidsL[i -1].position.y) > 0.5) {
+                                GLOBAL_VARS.bReadyMoves[i] = true;//GLOBAL_VARS.cuboidsL[i].position.y -= 0.02;
+                            }
+                        }
+                        if (GLOBAL_VARS.bReadyMoves[i] == true){
+                            if (GLOBAL_VARS.bCubeMovements[i] == false){
+                                if (GLOBAL_VARS.cuboidsL[i].position.y > -1){
+                                    GLOBAL_VARS.cuboidsL[i].position.y -= 0.02;
+                                } else {
+                                    GLOBAL_VARS.bCubeMovements[i] = true;
+                                }
+                            } else { // going upwards
+                                if (GLOBAL_VARS.cuboidsL[i].position.y < 3){
+                                    GLOBAL_VARS.cuboidsL[i].position.y += 0.02;
+                                } else {
+                                    GLOBAL_VARS.bCubeMovements[i] = false;
+                                }
+                            }
+                        }
+                    } // end if i not 0
+                } // end for loop
+            }
+
+
+            function counterCheck(){
+            	GLOBAL_VARS.counter.numCycles++; // number of cycles is always incremented
+                if (GLOBAL_VARS.counter.paused == false){
+                    GLOBAL_VARS.counter.num++;
+                }
+                if (GLOBAL_VARS.counter.num > 200){
+                    GLOBAL_VARS.counter.num = 0;
+                    GLOBAL_VARS.counter.paused = true;
+                }
+                var time = Date.now();
+            	if (time - GLOBAL_VARS.counter.lastTimeStampS > 1000){
+            		//GLOBAL_VARS.counter.numCyclesLs = 
+            		//GLOBAL_VARS.lblcps.update((time - GLOBAL_VARS.counter.lastTimeStamp));
+            		//GLOBAL_VARS.numCyclesSplit = GLOBAL_VARS.counter.numCycles;
+          
+            		GLOBAL_VARS.counter.numCyclesLs = GLOBAL_VARS.counter.numCycles - GLOBAL_VARS.counter.numCyclesPrev;
+            		GLOBAL_VARS.counter.lastTimeStampS = time;
+            		GLOBAL_VARS.counter.numCyclesPrev = GLOBAL_VARS.counter.numCycles;
+            	}
+            	difference = time - GLOBAL_VARS.counter.lastTimeStampC;
+            	if (difference > 16){
+            	}
+            
+            	GLOBAL_VARS.counter.lastTimeStampC = time;
+            }
+
+            function counterLblsUpdate(){
+            	GLOBAL_VARS.timeLbl.update(GLOBAL_VARS.counter.num);
+            	GLOBAL_VARS.lbl2.update(GLOBAL_VARS.counter.numCycles);
+            	GLOBAL_VARS.lblcps.update(GLOBAL_VARS.counter.numCyclesLs);
+            	GLOBAL_VARS.lblcpc.update(difference);
+            }
+
+            function Triangle2d(highPoint, c){
+                let triangleShape = new THREE.Shape();
+                triangleShape.moveTo(-20,0);
+                triangleShape.lineTo(20,highPoint);
+                triangleShape.lineTo(20,0);
+                triangleShape.lineTo(-20,0);
+
+                let geometry = new THREE.ShapeBufferGeometry(triangleShape);
+                this.mesh = new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color : c}));
+                this.scaleValue = 2;
+                this.highPointY = highPoint * this.scaleValue;
+                this.highPointX = 20 * this.scaleValue;
+                this.lowPointY = 0 * this.scaleValue;
+                this.lowPointX = -20 * this.scaleValue;
+                this.mesh.scale.set(this.scaleValue, this.scaleValue, this.scaleValue );
+                this.setYPos = function(num){
+                    this.mesh.position.y = num;
+                    this.highPointY += num;
+                    this.lowPointY += num;
+                },
+                this.getBottomY = function(){
+                    return this.lowPointY;
+                },
+                this.getTopY = function(){
+                    return this.highPointY;
+                }
+                this.getLeftX = function(){
+                    return this.lowPointX;
+                }
+                this.getRightX = function(){
+                    return this.highPointX;
+                }
+            }
+
+            function Circle2d(radius,cOt,bColor){
+                var circle = new THREE.Shape();
+                //circle.moveTo(0,0);
+                circle.absarc(10,10,radius,0,Math.PI * 2, false);
+                var geometry = new THREE.ShapeBufferGeometry(circle);
+                var mat;
+                if (bColor){
+                    mat = new THREE.MeshPhongMaterial({color:cOt});
+                } else {
+                    mat = new THREE.MeshPhongMaterial({map : cOt});
+                }
+                this.radius = radius;
+                this.circumference = (2 * Math.PI) * radius;
+                var mesh = new THREE.Mesh(geometry,mat);
+                mesh.position.x -= 10;
+                mesh.position.y -= 10;
+                this.object = new THREE.Object3D();
+                this.object.add(mesh);
+                this.origMoveValueX = 0;
+                this.origMoveValueY = -0.3;
+                this.moveValueX = this.origMoveValueX;
+                this.moveValueY = this.origMoveValueY;
+
+                // right90 is the point in which the circle will touch the triangle (if in-between x points), 90 degree angle to triangle hypotenuse
+                this.getRight90 = function(otherObj){
+                    var p1X = otherObj.lowPointX;
+                    var p1Y = otherObj.lowPointY;
+                    var p2X = otherObj.highPointX;
+                    var p2Y = otherObj.highPointY;
+                    var angleDeg = (-Math.atan2(p2Y - p1Y, p2X - p1X) * 180 / Math.PI) + 90;
+                    //alert(angleDeg);
+            
+                    var xNew = (this.radius * Math.cos(angleDeg * Math.PI / 180)) + (0 * Math.sin(angleDeg * Math.PI / 180));
+                    var yNew = (this.radius * -Math.sin(angleDeg * Math.PI / 180)) + (0 * Math.cos(angleDeg * Math.PI / 180));
+                    xNew += this.object.position.x;
+                    yNew += this.object.position.y;
+                    var rightDegreePoint = {x: xNew, y: yNew,angle: angleDeg};
+                    return rightDegreePoint;
+                },
+                this.collisionWith = function(other){
+                    var bCollision = false;
+                    var bCollType = null;
+                    var xDiff,yDiff;
+                    if (this.object.position.z == other.mesh.position.z){
+                        if (!(this.object.position.y - this.radius > other.getTopY() || this.object.position.y + this.radius < other.getBottomY())){
+                            if (!(this.object.position.x - this.radius > other.getRightX() || this.object.position.x + this.radius < other.getLeftX())){
+                                
+                                var rightSidePoint = this.getRight90(other);
+                                //alert(rightSidePoint.x + " " + this.object.position.x);
+                                var x0 = other.lowPointX;
+                                var x1 = other.highPointX;
+                                var y0 = other.lowPointY;
+                                var y1 = other.highPointY;
+                                var m = (y1 - y0) / (x1 - x0);
+                                var b = y0 - (m * x0);
+                                if (y1 - (m * x1) != b){
+                                    alert('Problem calculating diagonal triangle line');
+                                }
+                                if (this.object.position.z == -110){
+
+                                }
+                                var xVal = rightSidePoint.x;
+                                var r = (m * xVal) + b;
+                                if (this.object.position.x <= other.highPointX){
+                                    if (rightSidePoint.y < other.highPointY && rightSidePoint.y > other.lowPointY){
+                                        if (rightSidePoint.y < r){
+                                            bCollision = true;
+                                            bCollType = 1;
+                                        }
+                                    } else {
+                                        if (this.object.position.x + this.radius >= other.highPointX){
+                                            xDiff = this.object.position.x - other.highPointX;
+                                            yDiff = this.object.position.y - other.highPointY;
+                                            let c = (xDiff * xDiff) + (yDiff * yDiff);
+                                            // A way of checking diagonal length without square root
+                                            if (c < this.radius * this.radius){
+                                                bCollision = true;
+                                                bCollType = 2;
+                                            }
+                                        } else if (rightSidePoint.y < other.lowPointY && this.object.position.y > other.lowPointY){
+                                            xDiff = this.object.position.x - other.lowPointX;
+                                            yDiff = this.object.position.y - other.lowPointY;
+                                            let c = (xDiff * xDiff) + (yDiff * yDiff);
+                                            if (c < this.radius * radius){
+                                                bCollision = true;
+                                                bCollType = 4;
+                                            }
+                                        }
+                                    } 
+                                } else {
+                                    if (this.object.position.y > other.highPointY){
+                                        xDiff = this.object.position.x - other.highPointX;
+                                        //alert(xDiff);
+                                        yDiff = this.object.position.y - other.highPointY;
+                                        //alert(yDiff);
+                                        let c = (xDiff * xDiff) + (yDiff * yDiff);
+                                        if (Math.sqrt(c) < this.radius){
+                                            bCollision = true;
+                                            bCollType = 3;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (bCollision){
+                            let angle,r, xNew, yNew;
+                            let movement = this.origMoveValueX + this.origMoveValueY;
+                            let pcnt = (movement / this.circumference) * 100;
+                            switch(bCollType){
+                                case 1:
+                                    movement = this.origMoveValueX + this.origMoveValueY;
+                                    angle = rightSidePoint.angle;
+                                    let yMove = (90 - angle);
+                                    let xMove = (90 - yMove);
+                                    if (this.object.position.z == -110){
+                                    //alert('moves added = ' + xMove + yMove);
+                                    }
+                                    xMove = (xMove / 90) * 100;
+                                    yMove = (yMove / 90) * 100;
+                                    if (this.object.position.z == -110){
+                                    
+                                    }
+                                    xMove = (xMove / 100) * movement;
+                                    yMove = (yMove / 100) * movement;
+                                    if (this.object.position.z == -110){
+            
+                                    }
+                                    movement = this.origMoveValueX + this.origMoveValueY;
+                                    this.object.rotation.z -= (pcnt / 100) * (2 * Math.PI);
+                                    this.moveValueX = xMove;
+                                    this.moveValueY = movement - xMove;
+                                    break;
+                                case 3:
+                                    this.object.rotation.z += (pcnt / 100) * (2 * Math.PI);;
+                                    xNew = getXNew(pcnt.xDiff,yDiff);
+                                    yNew = getYNew(pcnt,xDiff,yDiff);
+                                    this.moveValueX = xNew - xDiff;
+                                    this.moveValueY = yNew - yDiff;
+                                    break;
+                                case 2:
+                                case 4:
+                                    this.object.rotation.z -= (pcnt / 100) * (2 * Math.PI);
+                                    xNew = getXNew(pcnt,xDiff,yDiff);
+                                    yNew = getYNew(pcnt,xDiff,yDiff);
+                                    this.moveValueX = xDiff - xNew;
+                                    this.moveValueY = yDiff - yNew;
+                                    break;
+                                    default: 
+                                    alert('error! colType not set');
+                            }
+                        }
+                        function getXNew(pcnt,xDiff,yDiff){
+                            r = (pcnt / 100) * 360;
+                            return (xDiff * Math.cos(r * Math.PI / 180)) + (yDiff * -Math.sin(r * Math.PI / 180));
+                        }
+                        function getYNew(pcnt,xDiff,yDiff){
+                            r = (pcnt / 100) * 360;
+                            return (xDiff * Math.sin(r * Math.PI / 180)) + (yDiff * Math.cos(r * Math.PI / 180));
+                        }
+                    }
+                    return bCollision;
+                },
+                this.move = function(){
+                    var triangles = [GLOBAL_VARS.triangle2d1,GLOBAL_VARS.triangle2d2,GLOBAL_VARS.triangle2d3];
+                    var bCollision = false;
+                    for (var i = 0; i < 3; i++){
+                        if (this.collisionWith(triangles[i])){
+                            bCollision = true; 
+                        }
+                    }
+                    if (bCollision == false){ // if no collision with any objects set original movementVal
+                        this.moveValueX = this.origMoveValueX;
+                        this.moveValueY = this.origMoveValueY;
+                    }
+                    // when circle is below -30 move it to higher point
+                    if (this.object.position.y < -30){
+                        this.object.position.x = 38;
+                        this.object.position.y = GLOBAL_VARS.triangle2d1.highPointY + 20;
+                        this.object.rotation.z = 0;
+                    }
+                    this.object.position.x += this.moveValueX;
+                    this.object.position.y += this.moveValueY;
+                    //alert(this.moveValueX + " " + this.moveValueY);
+                }
+            }
+
+            function createTwoDShapes(GLOBAL_DIR,scene){
+                var texture2 = new THREE.TextureLoader().load(GLOBAL_DIR + 'metalCircle.png');
+                texture2.wrapS = texture2.wrapT = THREE.RepeatWrapping;
+                texture2.repeat.set( 0.05, 0.05);
+               // var GLOBAL_VARS.triangle2d1 = get2dTriangle(40,0x000099);
+                GLOBAL_VARS.triangle2d1 = new Triangle2d(40,0x000099);
+                GLOBAL_VARS.triangle2d1.mesh.position.set( 0, -10, -125 );
+                GLOBAL_VARS.triangle2d1.setYPos(-10);
+                scene.add(GLOBAL_VARS.triangle2d1.mesh);
+                GLOBAL_VARS.circle1 = new Circle2d(6,texture2,false);
+                GLOBAL_VARS.circle1.object.position.set(10,GLOBAL_VARS.triangle2d1.highPointY,-125); //-125
+                scene.add(GLOBAL_VARS.circle1.object);
+                GLOBAL_VARS.triangle2d2 = new Triangle2d(30,0x0000ff);
+                GLOBAL_VARS.triangle2d2.mesh.position.set(0,-10,-110);
+                GLOBAL_VARS.triangle2d2.setYPos(-10);
+                scene.add(GLOBAL_VARS.triangle2d2.mesh);
+                GLOBAL_VARS.circle2 = new Circle2d(6,texture2,false);
+                GLOBAL_VARS.circle2.object.position.set(0,GLOBAL_VARS.triangle2d2.highPointY,-110); //-110
+                scene.add(GLOBAL_VARS.circle2.object);
+                GLOBAL_VARS.triangle2d3 = new Triangle2d(20,0x6666ff);
+                GLOBAL_VARS.triangle2d3.mesh.position.set(0,-10,-95);
+                GLOBAL_VARS.triangle2d3.setYPos(-10);
+                scene.add(GLOBAL_VARS.triangle2d3.mesh);
+                GLOBAL_VARS.circle3 = new Circle2d(6,texture2,false);
+                GLOBAL_VARS.circle3.object.position.set(0,GLOBAL_VARS.triangle2d1.highPointY,-95);
+                scene.add(GLOBAL_VARS.circle3.object);
+            }
+
+            function CreateCylinderMaterial(texture){
+                var materials = [
+                    new THREE.MeshLambertMaterial({color: 0x000000}),
+                    new THREE.MeshLambertMaterial({color: 0x0000ff}),
+                    new THREE.MeshLambertMaterial({map: texture})
+                ];
+                return materials;
+            }
+
+            function CreateCustomShape(points,faces,material){
+                let geom = new THREE.Geometry();
+                for (var i = 0; i < points.length; i++){
+                    geom.vertices.push(new THREE.Vector3(points[i][0],points[i][1],points[i][2]));
+                }
+                for (var i = 0; i < faces.length; i++){
+                    geom.faces.push(new THREE.Face3(faces[i][0],faces[i][1],faces[i][2]));
+                }
+                geom.computeFaceNormals();
+                let customShape = new THREE.Mesh( geom, material );
+                return customShape;   
+            }
+
+            window.addEventListener('keydown', function(e) {
+                GLOBAL_VARS.keys[e.keyCode] = true;
+            });
+            window.addEventListener('keyup', function(e) {
+                GLOBAL_VARS.keys[e.keyCode] = false;
+            });
+
+            function HandleKeyPress(){
+            for (var i = 0; i < GLOBAL_VARS.keys.length; i++){
+                if (GLOBAL_VARS.keys[i] == true){
+                    if (GLOBAL_VARS.keys[37] == true || GLOBAL_VARS.keys[97]){
+                        // 37 = left arrow - 97 = numpad 1
+                        GLOBAL_VARS.camera.rotation.y += 0.005 * Math.PI;
+                    }
+                    if (GLOBAL_VARS.keys[38] == true || GLOBAL_VARS.keys[101]){
+                    	// 38 = up arrow - 101 = numpad 5
+                        GLOBAL_VARS.camera.position.y += 0.1;
+                    }
+                    if (GLOBAL_VARS.keys[39] || GLOBAL_VARS.keys[99]){
+                    	// 39 = right arrow - 99 = numpad 3
+                        GLOBAL_VARS.camera.rotation.y -= 0.005 * Math.PI;
+                    }
+                    if (GLOBAL_VARS.keys[40] || GLOBAL_VARS.keys[98]){
+                    	// 40 = down arrow - 98 = numpad 2
+                        GLOBAL_VARS.camera.position.y -= 0.1;
+                    }
+                    if (GLOBAL_VARS.keys[87]){ // w
+                        GLOBAL_VARS.camera.position.x -= 0.25 * Math.sin(GLOBAL_VARS.camera.rotation.y);
+                        GLOBAL_VARS.camera.position.z -= 0.25 * Math.cos(GLOBAL_VARS.camera.rotation.y);
+                    }
+                    if (GLOBAL_VARS.keys[83]){
+                        GLOBAL_VARS.camera.position.x += 0.25 * Math.sin(GLOBAL_VARS.camera.rotation.y);
+                        GLOBAL_VARS.camera.position.z += 0.25 * Math.cos(GLOBAL_VARS.camera.rotation.y);
+                    }
+                    if (GLOBAL_VARS.keys[65]){
+                        GLOBAL_VARS.camera.position.x -= 0.25 * Math.cos(GLOBAL_VARS.camera.rotation.y);
+                        GLOBAL_VARS.camera.position.z += 0.25 * Math.sin(GLOBAL_VARS.camera.rotation.y);
+                    }
+                    if (GLOBAL_VARS.keys[68]){
+                        GLOBAL_VARS.camera.position.x += 0.25 * Math.cos(GLOBAL_VARS.camera.rotation.y);
+                        GLOBAL_VARS.camera.position.z -= 0.25 * Math.sin(GLOBAL_VARS.camera.rotation.y);
+                    }
+                }
+            }
+        }
+
+        </script>
+    </body>
+</html>

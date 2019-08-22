@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Testing</title>
+    <meta charset="UTF-8">
+	<script type="text/javascript" src="js/doob/three.js"></script>
+    <script type="text/javascript" src="js/doob/stats.js"></script>
+    <script type="text/javascript" src="js/doob/GLTFLoader.js"></script>
+    <!--
+    <script type="text/javascript" src="https://cdn.rawgit.com/mrdoob/three.js/master/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="http://threejs.org/examples/js/libs/stats.min.js"></script>
+    -->
+
+    <script type="text/javascript" src="js/myjs/createOct3d.js"></script>
+    <script type="text/javascript" src="js/myjs/playGround.js"></script>
+    
+
+</head>
+<body onload="canvasObject.init()">
+	<div id="Stats-output"></div>
+    <div id="WebGL-output"></div>
+    <div style="position: absolute; right: 30px; top: 20px; background: rgba(255, 255, 255, 0.3); padding: 10px">
+        Press T to transform 3dOctagan
+    </div>
+   <!-- <div style="position: absolute; right:20px; bottom: 20px">This div element has position: absolute;</div> -->
+	<!--<canvas id="canv" width="700" height="500">Canvas Not Supported In Browser</canvas>-->
+	<script>
+		var scene, camera, renderer, stats;
+		var oct3d, car;
+        var carMove = 0.1;
+		var GLOBAL_DIR = "mine/";
+
+		var canvasObject = {
+			//canvas : document.getElementById('canv'),
+			init : function(){
+				stats = initStats();
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 1000 );
+                renderer = new THREE.WebGLRenderer();
+                renderer.setClearColor(0xffffff, 1.0);
+                renderer.setSize( window.innerWidth -15, window.innerHeight -20 );
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.BasicShadowMap;
+
+                this.keys = [];
+                this.initKeys();
+                var planeGeometry = new THREE.PlaneGeometry(150, 192,0,0);
+                var planeMaterial = new THREE.MeshLambertMaterial({color: 0xcccccc});
+                var plane = new THREE.Mesh(planeGeometry, planeMaterial);
+                plane.receiveShadow = true;
+               // rotate and position the plane
+                plane.rotation.x = -0.5 * Math.PI;
+                scene.add(plane);
+                
+               	initExternalThree(THREE);
+                oct3d = new custom_Oct3d();
+                oct3d.addToScene(scene);
+                
+                initTHREEforPlayGround(THREE,GLOBAL_DIR);
+                playGround = new playGround();
+                playGround.playGround.position.set(150,-10,0);
+                playGround.addToScene(scene);
+
+                createWalls();
+                createSteps();
+
+                carObj = new THREE.Object3D();
+                var loader = new THREE.GLTFLoader();
+                loader.load('sVehicleMat.glb',function( gltf) {
+                    gltf.scene.traverse( function( node ) {
+                        var x = 10;
+                        if ( node instanceof THREE.Mesh ) {
+                            //alert('node is instanceofMesh');
+                            node.receiveShadow = true;
+                            node.castShadow = true;
+                        }
+                    } );
+                    var scale = 10;
+                    gltf.scene.scale.set(scale,scale,scale);
+                    //gltf.scene.receiveShadow = true;
+                    //gltf.scene.castShadow = true;
+                    carObj.add(gltf.scene);
+                }, undefined, function (error){
+                    console.error(error);
+                    alert("couldn't find loader file");
+                });
+
+                car.init(carObj);
+               
+                var testBox = new THREE.Mesh(new THREE.BoxGeometry(5,5,5),new THREE.MeshLambertMaterial({color: 0x0000ff}));
+                testBox.castShadow = true;
+                testBox.position.set(-30,0,0);
+                scene.add(testBox);
+
+                createDirectionalLight();
+              
+
+                plane.position.y = -10;
+                camera.position.x = 0;
+                camera.position.y = 0;
+                camera.position.z = 25;
+                camera.lookAt(scene.position);
+                // add the output of the renderer to the html element
+                document.getElementById("WebGL-output").appendChild(renderer.domElement);
+                var ambientLight = new THREE.AmbientLight(0x0c0c0c);
+                scene.add(ambientLight);
+                canvasObject.render();
+			},
+			initKeys : function(){
+				window.addEventListener('keydown', function(e) {
+					canvasObject.keys[e.keyCode] = true;
+				});
+				window.addEventListener('keyup', function(e) {
+					canvasObject.keys[e.keyCode] = false;
+				});
+			},
+			render : function() {
+				stats.update();
+				handleKeyPress();
+				oct3d.transform();
+                if (car.bMove){
+                    car.move();
+                }
+                setTimeout( function() {
+                    requestAnimationFrame( canvasObject.render );
+                    renderer.render(scene, camera);
+                }, 11 ); // delay of n milliseconds
+			}
+		}
+        
+		car = {
+            init : function(cObj){
+                this.carObj = cObj;
+                this.carObj.rotation.y = -0.5 * Math.PI;
+                this.carObj.position.set(-50, 1 ,0);
+                var wheelRadius = 5;
+                this.wCircumference =  2 * Math.PI * (wheelRadius);
+               // alert("wCircumference " + this.wCircumference);
+                var wheelGeo = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 1, 20, 1);
+    
+                var texture = new THREE.TextureLoader().load(GLOBAL_DIR + 'wheel.png');
+                var wheelMat = CreateCylinderMaterial(texture);
+                this.wheels = [];
+                for (var i = 0; i < 4; i++){
+                    this.wheels.push(new THREE.Mesh(wheelGeo,wheelMat));
+                    if (i == 0 || i == 2){
+                        this.wheels[i].rotation.z = 0.5 * Math.PI;
+                    } else {
+                        this.wheels[i].rotation.z = -0.5 * Math.PI;
+                    }
+                }
+                this.wheels[0].position.set(15,-6,15);
+                this.carObj.add(this.wheels[0]);
+                this.wheels[1].position.set(-15,-6,15);
+                this.carObj.add(this.wheels[1]);
+                this.wheels[2].position.set(15,-6,-15);
+                this.carObj.add(this.wheels[2]);
+                this.wheels[3].position.set(-15,-6,-15);
+                this.carObj.add(this.wheels[3]);
+                scene.add(this.carObj);
+                this.bMove = true;
+                this.moveValue = 0.25;
+                //this.moveX = 0.1;
+                //this.moveY = 0;
+                //this.moveZ = 0;
+            },
+            move : function(){
+                this.moveForward();
+                if (this.carObj.position.x < -100){
+                    if (this.carObj.rotation.y < (0) && this.carObj.position.z <=100){
+                        this.turnLeft();
+                    }
+                }
+                if (this.carObj.position.z > 100 && this.carObj.rotation.y < (0.5 * Math.PI)){
+                    this.turnLeft();
+                }
+
+                if (this.carObj.position.x > 270 && this.carObj.rotation.y < (Math.PI)){
+                    this.turnLeft();
+                }
+
+                if(this.carObj.position.z < -100 && this.carObj.rotation.y < (1.5 * Math.PI)){
+                    this.turnLeft();
+                }
+
+                if(this.carObj.position.x < -100 && this.carObj.position.z < -100){
+                    this.bMove = false;
+                }
+            },
+            moveForward : function(){
+                this.carObj.position.x += this.moveValue * Math.sin(this.carObj.rotation.y);
+                this.carObj.position.z += this.moveValue * Math.cos(this.carObj.rotation.y);
+                let pcnt = (this.moveValue / this.wCircumference) * 100;
+                let r = (pcnt / 100) * (2 * Math.PI);
+                //alert(this.wCircumference / r); // outputs 628 (close to)
+                for (i = 0; i < 4; i++){
+                    this.wheels[i].rotation.x += r;
+                }
+            },
+            turnLeft : function(){
+                this.carObj.rotation.y += 0.01; 
+            },
+            turnRight : function(){
+                this.carObj.rotation.y -= 0.01;
+            },
+            moveBack : function(){
+                this.carObj.position.x -= this.moveValue * Math.sin(this.carObj.rotation.y);
+                this.carObj.position.z -= this.moveValue * Math.cos(this.carObj.rotation.y);
+            }
+        }
+
+        function CreateCubeMaterials(texture){
+            var materials = [
+                new THREE.MeshBasicMaterial( { color: 0xeeeeee} ),                      
+                new THREE.MeshBasicMaterial( { color: 0xeeeeee} ),                      
+                new THREE.MeshBasicMaterial( { color: 0xeeeeee} ),                      
+                new THREE.MeshBasicMaterial( { color: 0xeeeeee} ),                      
+                new THREE.MeshBasicMaterial( { color: 0x000000} ),                      
+                new THREE.MeshBasicMaterial( { map: texture} )             
+            ];
+            return materials;
+        }
+
+        function CreateCylinderMaterial(texture){
+            var materials = [
+                new THREE.MeshLambertMaterial({color: 0x000000}),
+                new THREE.MeshLambertMaterial({color: 0x000000}),
+                new THREE.MeshLambertMaterial({map: texture})
+                //new THREE.MeshLambertMaterial({color: 0x000000})
+            ];
+            return materials;
+        }
+
+		function handleKeyPress(){
+			for (var i = 0; i < canvasObject.keys.length; i++){
+				if (canvasObject.keys[i] == true){
+                    if (canvasObject.keys[37] == true){
+						//alert('37 pressed');
+						camera.rotation.y += 0.005 * Math.PI;
+					}
+					if (canvasObject.keys[38] == true){
+						camera.position.y += 0.1;
+					}
+					if (canvasObject.keys[39]){
+						camera.rotation.y -= 0.005 * Math.PI;
+					}
+					if (canvasObject.keys[40]){
+						camera.position.y -= 0.1;
+					}
+					if (canvasObject.keys[87]){ // w
+						camera.position.x -= 0.25 * Math.sin(camera.rotation.y);
+                    	camera.position.z -= 0.25 * Math.cos(camera.rotation.y);
+					}
+					if (canvasObject.keys[83]){
+						camera.position.x += 0.25 * Math.sin(camera.rotation.y);
+                    	camera.position.z += 0.25 * Math.cos(camera.rotation.y);
+					}
+					if (canvasObject.keys[65]){
+						camera.position.x -= 0.25 * Math.cos(camera.rotation.y);
+                    	camera.position.z += 0.25 * Math.sin(camera.rotation.y);
+					}
+					if (canvasObject.keys[68]){
+						camera.position.x += 0.25 * Math.cos(camera.rotation.y);
+                    	camera.position.z -= 0.25 * Math.sin(camera.rotation.y);
+					}
+					if (canvasObject.keys[84]){
+						oct3d.transformRequest = true;
+					}
+				}
+			}
+		}
+
+		function initStats() {
+            var stats = new Stats();
+            stats.setMode(0); // 0: fps, 1: ms
+            // Align top-left
+            stats.domElement.style.position = 'absolute';
+            stats.domElement.style.left = '0px';
+            stats.domElement.style.top = '0px';
+            document.getElementById("Stats-output").appendChild(stats.domElement);
+            return stats;
+        }
+
+        function createWalls(){
+            var wallHeight = 180;
+                var wallWidth = 6;
+                var geometry = new THREE.BoxGeometry( 180, wallHeight, wallWidth );
+                //playground plane is 150 , 180
+                  
+                var texture1 = new THREE.TextureLoader().load(GLOBAL_DIR + 'Park3/negx.jpg');
+                var texture2 = new THREE.TextureLoader().load(GLOBAL_DIR + 'Park3/posx.jpg');
+                var texture3 = new THREE.TextureLoader().load(GLOBAL_DIR + 'Park3/negz.jpg');
+                var texture4 = new THREE.TextureLoader().load(GLOBAL_DIR + 'Park3/posy.jpg');
+                
+                var cubeMaterials1 = CreateCubeMaterials(texture1);
+                var cubeMaterials2 = CreateCubeMaterials(texture2);
+                var cubeMaterials3 = CreateCubeMaterials(texture3);
+                var cubeMaterials4 = CreateCubeMaterials(texture4);
+
+                //var wall1 = new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({ vertexColors: THREE.FaceColors, overdraw: 0.5 }));
+                var wall1 = new THREE.Mesh(geometry,cubeMaterials1);
+                wall1.castShadow = true;
+                var wall2 = new THREE.Mesh(geometry,cubeMaterials2);
+                wall2.castShadow = true;
+                var wall3 = new THREE.Mesh(geometry,cubeMaterials3);
+                wall3.castShadow = true;
+                var wall4 = new THREE.Mesh(geometry,cubeMaterials4);
+                wall4.castShadow = true;
+                var wallPosY = 20;
+                wall3.position.x = 258;
+                wall3.position.y = 20;
+                wall2.rotation.y = Math.PI;
+                wall1.position.set(165,wallPosY,93);
+                wall2.position.set(165,wallPosY,-93)
+                wall3.rotation.y = 0.5 * Math.PI;
+                wall4.position.set(165,(wallHeight /2) + wallPosY + (wallWidth /2),0);
+                wall4.rotation.x = -0.5 * Math.PI;
+                wall4.rotation.z = -0.5 * Math.PI;
+                scene.add(wall1);
+                scene.add(wall2);
+                scene.add(wall3);
+                scene.add(wall4);
+
+                var wall5 = new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({color: 0x0000FF}));
+                wall5.castShadow = true;
+                wall5.position.x = 165;
+                wall5.position.y = 20;
+                wall5.position.z = -150;
+                scene.add(wall5);
+        }
+
+        function createSteps(){
+            var stepsObj1 = new THREE.Object3D();
+            var stepLength = 20;
+            var stepZWidth = 5;
+            var stepHeight = 2;
+            var stepGeo = new THREE.BoxGeometry(stepLength,stepHeight,stepZWidth);
+            var step;
+            var stepPosY = 0;
+            var stepPosZ = 0;
+            var gapz = 5;
+            var gapy = 3;
+            for (var i = 0; i < 10; i++){
+                step = new THREE.Mesh(stepGeo,new THREE.MeshLambertMaterial({color: 0x000000}));
+                stepPosZ = -(gapz * i);
+                step.position.z = stepPosZ;
+                stepPosY = (gapy * i);
+                step.position.y = stepPosY;
+                step.castShadow = true;
+                step.receiveShadow = true;
+                stepsObj1.add(step);
+            }
+            stepsObj1.position.x = -75 + (stepLength /2);
+            stepsObj1.position.y = -10 + (stepHeight /2);
+            stepsObj1.position.z = -50 - (stepZWidth /2);
+            scene.add(stepsObj1);
+
+            var breakStepGeo = new THREE.BoxGeometry(stepLength,2,stepLength);
+            var breakStepMat = new THREE.MeshLambertMaterial({color: 0x000000});
+            var breakStep1 = new THREE.Mesh(breakStepGeo,breakStepMat);
+            var breakStep2 = new THREE.Mesh(breakStepGeo,breakStepMat);
+            // var breakStep3 = new THREE.Mesh(breakStepGeo,breakStepMat);
+            breakStep1.position.x = -75 + (stepLength / 2); //stepLength / 2 = 10
+            breakStep1.position.y = -10 + (stepHeight * 2) + (stepPosY * 1);
+            breakStep1.position.z = (-75 + (stepLength /2)) + (stepPosZ * 1);
+            scene.add(breakStep1);
+            var stepsObj2 = stepsObj1.clone();
+            stepsObj2.position.x += (stepLength /2) + (stepZWidth / 2);
+            stepsObj2.position.z = - 110;
+            stepsObj2.position.y = 20 + (stepHeight * 2);
+            stepsObj2.rotation.y = -0.5 * Math.PI;
+            scene.add(stepsObj2);
+            breakStep2.position.x = stepZWidth;
+            breakStep2.position.y = (stepPosY * 2);
+            breakStep2.position.z = breakStep1.position.z;
+            scene.add(breakStep2);
+            var stepsObj3 = stepsObj1.clone();
+            stepsObj3.position.x += 60 + (stepLength /2)
+            stepsObj3.position.y = (stepPosY * 2) -1 + (stepHeight * 2);
+            stepsObj3.position.z = -120 - (stepZWidth/ 2);
+            scene.add(stepsObj3);
+        }
+
+        function createDirectionalLight(){
+            var light = new THREE.DirectionalLight(0xFFFFFF, 1); //intensity 1
+            light.position.set(-200, 50, -250);
+            light.castShadow = true;
+
+            var sphereLightGeometry = new THREE.SphereGeometry(3);
+            var sphereLightMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffff00
+            });
+            var sphereLight = new THREE.Mesh(sphereLightGeometry,sphereLightMaterial);
+            sphereLight.position.set(-200,50,-250);
+            light.target.position.set(0, -10, 0);
+            //light.shadowDarkness = 0.5; // removed from THREE library
+            light.shadow.camera.left = -100;
+            light.shadow.camera.right = 100;
+            light.shadow.camera.top = 100;
+            light.shadow.camera.bottom = -100;
+
+            scene.add(light);
+            scene.add(light.target);
+            scene.add(sphereLight);
+        }
+
+	</script>
+</body>
+</html>
