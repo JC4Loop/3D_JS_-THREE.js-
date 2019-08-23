@@ -133,7 +133,7 @@ function TriangleBlock(){
     }
     this.setVirtualCube = function(){
     	// As the TriangleBLock is not moved it is best to set
-    	// if TriangleBlock was moving get methods that would consistently calculate would need to be used
+    	// if TriangleBlock was moving, get methods that would consistently calculate would need to be used
     	this.setXLeft();
     	this.setXRight();
     	this.setYTop();
