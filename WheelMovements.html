@@ -97,7 +97,6 @@
 
 
             $(function() {
-
                 const GLOBAL_DIR = "mine/";
                 GLOBAL_VARS.counter.init();
                 var stats = initStats();
@@ -168,9 +167,8 @@
                 }
                 scene.add(GLOBAL_VARS.cuboid1);
                 scene.add(GLOBAL_VARS.cuboid2);
-            //    alert(cuboid2.position.x + " " + posP + (cuboidWidth /2 + wheelDiameter));
+
                 GLOBAL_VARS.wheel.mesh.position.x = GLOBAL_VARS.posP;
-               // wheel.position.z = (cuboidWidth / 2) + (wheelThickness / 2);
                 scene.add(GLOBAL_VARS.wheel.mesh);
 
                 createTwoDShapes(GLOBAL_DIR,scene);
@@ -431,6 +429,8 @@
                 this.object.add(mesh);
                 this.origMoveValueX = 0;
                 this.origMoveValueY = -0.3;
+                this.originXs = [0,38,42];
+                this.originX = null;
                 this.moveValueX = this.origMoveValueX;
                 this.moveValueY = this.origMoveValueY;
 
@@ -458,7 +458,7 @@
                         if (!(this.object.position.y - this.radius > other.getTopY() || this.object.position.y + this.radius < other.getBottomY())){
                             if (!(this.object.position.x - this.radius > other.getRightX() || this.object.position.x + this.radius < other.getLeftX())){
                                 
-                                var rightSidePoint = this.getRight90(other);
+                                var rightSidePoint = this.getRight90(other); // other = triangle2d
                                 //alert(rightSidePoint.x + " " + this.object.position.x);
                                 var x0 = other.lowPointX;
                                 var x1 = other.highPointX;
@@ -545,7 +545,7 @@
                                     break;
                                 case 3:
                                     this.object.rotation.z += (pcnt / 100) * (2 * Math.PI);;
-                                    xNew = getXNew(pcnt.xDiff,yDiff);
+                                    xNew = getXNew(pcnt,xDiff,yDiff);
                                     yNew = getYNew(pcnt,xDiff,yDiff);
                                     this.moveValueX = xNew - xDiff;
                                     this.moveValueY = yNew - yDiff;
@@ -587,9 +587,20 @@
                     }
                     // when circle is below -30 move it to higher point
                     if (this.object.position.y < -30){
-                        this.object.position.x = 38;
                         this.object.position.y = GLOBAL_VARS.triangle2d1.highPointY + 20;
                         this.object.rotation.z = 0;
+                        for (let i = 0; i < this.originXs.length;i++){
+                            if (this.originX == this.originXs[i]){
+                                if (i == this.originXs.length -1){ //if equal to last var in array
+                                    this.originX = this.originXs[0];
+                                } else {
+                                    this.originX = this.originXs[i + 1];
+                                }
+                                this.object.position.x = this.originX;
+                                break;
+                            } 
+                        }
+
                     }
                     this.object.position.x += this.moveValueX;
                     this.object.position.y += this.moveValueY;
@@ -607,21 +618,24 @@
                 GLOBAL_VARS.triangle2d1.setYPos(-10);
                 scene.add(GLOBAL_VARS.triangle2d1.mesh);
                 GLOBAL_VARS.circle1 = new Circle2d(6,texture2,false);
-                GLOBAL_VARS.circle1.object.position.set(10,GLOBAL_VARS.triangle2d1.highPointY,-125); //-125
+                GLOBAL_VARS.circle1.originX = GLOBAL_VARS.circle1.originXs[2];
+                GLOBAL_VARS.circle1.object.position.set(GLOBAL_VARS.circle1.originX,GLOBAL_VARS.triangle2d1.highPointY + 20,-125); //-125
                 scene.add(GLOBAL_VARS.circle1.object);
                 GLOBAL_VARS.triangle2d2 = new Triangle2d(30,0x0000ff);
                 GLOBAL_VARS.triangle2d2.mesh.position.set(0,-10,-110);
                 GLOBAL_VARS.triangle2d2.setYPos(-10);
                 scene.add(GLOBAL_VARS.triangle2d2.mesh);
                 GLOBAL_VARS.circle2 = new Circle2d(6,texture2,false);
-                GLOBAL_VARS.circle2.object.position.set(0,GLOBAL_VARS.triangle2d2.highPointY,-110); //-110
+                GLOBAL_VARS.circle2.originX = GLOBAL_VARS.circle2.originXs[1];
+                GLOBAL_VARS.circle2.object.position.set(GLOBAL_VARS.circle2.originX,GLOBAL_VARS.triangle2d2.highPointY + 20,-110); //-110
                 scene.add(GLOBAL_VARS.circle2.object);
                 GLOBAL_VARS.triangle2d3 = new Triangle2d(20,0x6666ff);
                 GLOBAL_VARS.triangle2d3.mesh.position.set(0,-10,-95);
                 GLOBAL_VARS.triangle2d3.setYPos(-10);
                 scene.add(GLOBAL_VARS.triangle2d3.mesh);
                 GLOBAL_VARS.circle3 = new Circle2d(6,texture2,false);
-                GLOBAL_VARS.circle3.object.position.set(0,GLOBAL_VARS.triangle2d1.highPointY,-95);
+                GLOBAL_VARS.circle3.originX = GLOBAL_VARS.circle3.originXs[0];
+                GLOBAL_VARS.circle3.object.position.set(GLOBAL_VARS.circle3.originX,GLOBAL_VARS.triangle2d1.highPointY +20,-95);
                 scene.add(GLOBAL_VARS.circle3.object);
             }
 
