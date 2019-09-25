@@ -2,6 +2,9 @@ function TriangleBlock(){
 	this.mesh = null;
 	this.x = 0,this.y = 0,this.z = 0;
 	this.xLeft = null, this.xRight = null, this.yTop = null, this.yBottom = null, this.zFar = null, this.zClose = null;
+    this.xzBottom = {m: null, b: null}; // xzBottom is the m and b values for calculating the lines equation, this line is the bottom y of the hypotenuse
+    this.xzTop = {m: null, b: null};
+    this.slopeDeg = null;
 	this.points = [ [-30,0,-30]
 	               ,[-30,0,30]
 	               ,[30,0,30]
@@ -17,6 +20,7 @@ function TriangleBlock(){
                  ,[1,2,4]
                  ,[5,3,0]];
     this.rotationY = 0;
+    this.slopeDeg = 45;
     this.getPoints = function(){return this.points;}
     this.getFaces = function(){return this.faces;}
     this.setMesh = function(m){this.mesh = m;}
@@ -98,6 +102,24 @@ function TriangleBlock(){
     	}
     	this.zClose = zc;
     }
+    this.setXZEquations = function(){
+        // 4 and 5 highpoints
+        let x1 = this.points[4][0];
+        let x2 = this.points[5][0];
+        let z1 = this.points[4][2];
+        let z2 = this.points[5][2];
+        this.xzTop.m = (z2 - z1) / (x2 - x1);
+        this.xzTop.b = z1 - (this.xzTop.m * x1);
+        //alert(this.xzTop.m + " " + this.xzTop.b);
+        // 0 and 1 lowpoints
+        x1 = this.points[0][0];
+        x2 = this.points[1][0];
+        z1 = this.points[0][2];
+        z2 = this.points[1][2];
+        this.xzBottom.m = (z2 - z1) / (x2 - x1);
+        this.xzBottom.b = z1 - (this.xzBottom.m * x1);
+        //alert(this.xzBottom.m + " " + this.xzBottom.b);
+    }
     this.getTempPoints = function(){
     	return [ [null,null,null],
 						[null,null,null],
@@ -130,6 +152,7 @@ function TriangleBlock(){
 		}
 		this.mesh.rotation.y = angle;
 		////rotation.y = 0.25 * Math.PI;
+        this.setXZEquations();
     }
     this.setVirtualCube = function(){
     	// As the TriangleBLock is not moved it is best to set

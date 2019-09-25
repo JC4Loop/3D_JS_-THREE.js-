@@ -198,7 +198,8 @@
                 GLOBAL_VARS.triBlock1.setVirtualCube();
                 GLOBAL_VARS.sphere1 = new Ball(5);
                 let sphereGeo = new THREE.SphereGeometry(GLOBAL_VARS.sphere1.radius, 20, 20);
-                let sphereMat = new THREE.MeshLambertMaterial({color: 0x0000FF});
+                //let ballTexture new THREE.TextureLoader().load(GLOBAL_DIR + 'ballMat.jpg')
+                let sphereMat = new THREE.MeshLambertMaterial({map : new THREE.TextureLoader().load(GLOBAL_DIR + 'ballMat.jpg')});
                 GLOBAL_VARS.sphere1.setMesh(new THREE.Mesh(sphereGeo,sphereMat));
                 scene.add(GLOBAL_VARS.sphere1.mesh);
                 GLOBAL_VARS.sphere1.setX(90);
@@ -441,7 +442,6 @@
                     var p2X = otherObj.highPointX;
                     var p2Y = otherObj.highPointY;
                     var angleDeg = (-Math.atan2(p2Y - p1Y, p2X - p1X) * 180 / Math.PI) + 90;
-                    //alert(angleDeg);
             
                     var xNew = (this.radius * Math.cos(angleDeg * Math.PI / 180)) + (0 * Math.sin(angleDeg * Math.PI / 180));
                     var yNew = (this.radius * -Math.sin(angleDeg * Math.PI / 180)) + (0 * Math.cos(angleDeg * Math.PI / 180));
@@ -525,18 +525,18 @@
                                     angle = rightSidePoint.angle;
                                     let yMove = (90 - angle);
                                     let xMove = (90 - yMove);
-                                    if (this.object.position.z == -110){
-                                    //alert('moves added = ' + xMove + yMove);
+                                    if (this.object.position.z == -125){
+                                        //alert('moves added = ' + xMove + yMove);
                                     }
-                                    xMove = (xMove / 90) * 100;
+                                    xMove = (xMove / 90) * 100; //turn in to percentage
                                     yMove = (yMove / 90) * 100;
-                                    if (this.object.position.z == -110){
-                                    
+                                    if (this.object.position.z == -125){
+                                        //alert("percentage x " + xMove + " y " + yMove);
                                     }
-                                    xMove = (xMove / 100) * movement;
+                                    xMove = (xMove / 100) * movement;   // using percentage to calculate new movement
                                     yMove = (yMove / 100) * movement;
-                                    if (this.object.position.z == -110){
-            
+                                    if (this.object.position.z == -125){
+                                        //alert("x " + xMove + " y " + yMove);
                                     }
                                     movement = this.origMoveValueX + this.origMoveValueY;
                                     this.object.rotation.z -= (pcnt / 100) * (2 * Math.PI);
